@@ -1,113 +1,157 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>نظام الإحالة مع Firebase</title>
+    <title>نظام الإحالة والمكافآت</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore-compat.js"></script>
     <style>
-        /* نفس الإستايل السابق */
-        :root { --bg-color: #fff; --text-color: #000; }
-        body.dark { --bg-color: #1a1a1a; --text-color: #fff; }
-        body { font-family: Arial; padding: 20px; }
-        .card { background: rgba(0,0,0,0.1); padding: 20px; border-radius: 15px; margin: 15px 0; }
-        button { background: #2AABEE; color: white; padding: 10px 20px; border: none; border-radius: 8px; }
+        :root {
+            --bg-color: #ffffff;
+            --text-color: #000000;
+            --primary: #2AABEE;
+        }
+        body.dark {
+            --bg-color: #1a1a1a;
+            --text-color: #ffffff;
+        }
+        body {
+            font-family: Arial, sans-serif;
+            background: var(--bg-color);
+            color: var(--text-color);
+            padding: 20px;
+            margin: 0;
+            min-height: 100vh;
+            transition: background 0.3s, color 0.3s;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        .card {
+            background: rgba(0, 0, 0, 0.05);
+            padding: 20px;
+            border-radius: 15px;
+            margin: 20px 0;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        button {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            margin: 8px;
+            font-size: 16px;
+            transition: opacity 0.3s;
+        }
+        button:active {
+            opacity: 0.8;
+        }
+        .referral-box {
+            background: rgba(42, 171, 238, 0.1);
+            padding: 15px;
+            border-radius: 10px;
+            word-break: break-all;
+            margin: 15px 0;
+            font-family: monospace;
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>🎁 نظام المكافآت</h1>
+        <h1>🎉 نظام المكافآت (نسخة محلية)</h1>
         
         <div class="card">
-            <h3>رصيدك: <span id="points">0</span> نقطة</h3>
-            <button onclick="addPoints(50)">احصل على نقاط</button>
+            <h3>رصيدك الحالي: <span id="points">0</span> نقطة</h3>
+            <button onclick="addPoints(50)">+50 نقطة 🎁</button>
         </div>
 
         <div class="card">
-            <h2>🔗 رابط الإحالة</h2>
-            <div id="referralLink" class="referral-box"></div>
-            <button onclick="copyLink()">نسخ</button>
-            <button onclick="shareLink()">مشاركة</button>
+            <h2>🔗 رابط الإحالة الخاص بك</h2>
+            <div class="referral-box" id="referralLink"></div>
+            <div>
+                <button onclick="copyLink()">نسخ الرابط 📋</button>
+                <button onclick="shareLink()">مشاركة ➤</button>
+            </div>
         </div>
     </div>
 
     <script>
-        // ━━━━━━━━ تهيئة Firebase ━━━━━━━━
-        const firebaseConfig = {
-  apiKey: "AIzaSyA_g4eMwWa0lcHDdU-PZ-uFp5VuKFiQtnM",
-  authDomain: "rsuz-4c69f.firebaseapp.com",
-  projectId: "rsuz-4c69f",
-  storageBucket: "rsuz-4c69f.firebasestorage.app",
-  messagingSenderId: "663553404737",
-  appId: "1:663553404737:web:a43ffbf1e2379cfe6d7bc0",
-  measurementId: "G-2H87Q5WPS1"
-};
-        
-        firebase.initializeApp(firebaseConfig);
-        const db = firebase.firestore();
-
-        // ━━━━━━━━ تهيئة Telegram Web App ━━━━━━━━
+        // ━━━━━━━━ التهيئة الأساسية ━━━━━━━━
         const webApp = Telegram.WebApp;
-        const user = webApp.initDataUnsafe.user;
+        let userPoints = 0;
         let referralLink = "";
 
-        // ━━━━━━━━ إنشاء أو تحديث المستخدم ━━━━━━━━
-        async function initUser() {
-            const userRef = db.collection('users').doc(String(user.id));
-            const doc = await userRef.get();
-            
-            if (!doc.exists) {
+        // ━━━━━━━━ إدارة المستخدمين ━━━━━━━━
+        function initUser() {
+            try {
+                const user = webApp.initDataUnsafe.user;
+                if (!user) throw new Error("لا يوجد بيانات مستخدم");
+                
+                // التحميل من localStorage
+                userPoints = parseInt(localStorage.getItem(`user_${user.id}_points`)) || 100;
+                document.getElementById('points').textContent = userPoints;
+
+                // إنشاء رابط الإحالة
+                referralLink = `https://t.me/${webApp.initDataUnsafe.bot.username}?start=ref_${user.id}`;
+                document.getElementById('referralLink').textContent = referralLink;
+
+                // معالجة الإحالة إن وجدت
                 const urlParams = new URLSearchParams(window.location.search);
                 const referrer = urlParams.get('ref');
-                
-                await userRef.set({
-                    points: 100,
-                    referrals: [],
-                    referrer: referrer || null,
-                    created_at: firebase.firestore.FieldValue.serverTimestamp()
-                });
-
                 if (referrer) {
-                    await db.collection('users').doc(referrer).update({
-                        points: firebase.firestore.FieldValue.increment(50),
-                        referrals: firebase.firestore.FieldValue.arrayUnion(user.id)
-                    });
+                    webApp.showAlert(`تمت إحالتك بواسطة المستخدم: ${referrer}`);
                 }
+
+            } catch (error) {
+                webApp.showAlert(`خطأ: ${error.message}`);
             }
-            
-            // عرض البيانات
-            userRef.onSnapshot((doc) => {
-                document.getElementById('points').textContent = doc.data().points;
-            });
-            
-            referralLink = `https://t.me/${webApp.initDataUnsafe.bot.username}?start=ref_${user.id}`;
-            document.getElementById('referralLink').textContent = referralLink;
         }
 
-        // ━━━━━━━━ إضافة نقاط ━━━━━━━━
-        async function addPoints(amount) {
-            await db.collection('users').doc(String(user.id)).update({
-                points: firebase.firestore.FieldValue.increment(amount)
-            });
+        // ━━━━━━━━ إضافة النقاط ━━━━━━━━
+        function addPoints(amount) {
+            const user = webApp.initDataUnsafe.user;
+            userPoints += amount;
+            localStorage.setItem(`user_${user.id}_points`, userPoints);
+            document.getElementById('points').textContent = userPoints;
             webApp.showAlert(`تم إضافة ${amount} نقطة! 🎉`);
         }
 
         // ━━━━━━━━ نسخ الرابط ━━━━━━━━
         function copyLink() {
-            navigator.clipboard.writeText(referralLink);
-            webApp.showAlert('تم النسخ! ✅');
+            try {
+                navigator.clipboard.writeText(referralLink).then(() => {
+                    webApp.showAlert("تم النسخ بنجاح! ✅");
+                }).catch(() => {
+                    manualCopy();
+                });
+            } catch (error) {
+                manualCopy();
+            }
+        }
+
+        function manualCopy() {
+            const input = document.createElement('input');
+            input.value = referralLink;
+            document.body.appendChild(input);
+            input.select();
+            document.execCommand('copy');
+            document.body.removeChild(input);
+            webApp.showAlert("انسخ الرابط يدويًا: " + referralLink);
         }
 
         // ━━━━━━━━ مشاركة الرابط ━━━━━━━━
         function shareLink() {
-            webApp.openLink(`https://t.me/share/url?url=${encodeURIComponent(referralLink)}`);
+            webApp.openLink(
+                `https://t.me/share/url?url=${encodeURIComponent(referralLink)}&text=انضم+للحصول+على+مكافآت+رائعة!🎉`
+            );
         }
 
-        // ━━━━━━━━ التشغيل التلقائي ━━━━━━━━
+        // ━━━━━━━━ بدء التشغيل ━━━━━━━━
         webApp.ready();
-        webApp.expand();
+        webApp.expand(); // فتح الشاشة الكاملة
         document.body.className = webApp.colorScheme === 'dark' ? 'dark' : '';
         initUser();
     </script>
 </body>
-  </html>
+</html>
