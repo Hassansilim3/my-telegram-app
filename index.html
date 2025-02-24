@@ -93,9 +93,9 @@
                 document.getElementById('points').textContent = userPoints;
 
                 // إنشاء رابط الإحالة
-                referralLink = `https://t.me/${webApp.initDataUnsafe.bot.username}?start=ref_${user.id}`;
-                document.getElementById('referralLink').textContent = referralLink;
-
+                // إنشاء رابط الإحالة
+referralLink = `https://t.me/${webApp.initDataUnsafe.bot.username}?start=ref_${user.id}`;
+document.getElementById('referralLink').textContent = referralLink;
                 // معالجة الإحالة إن وجدت
                 const urlParams = new URLSearchParams(window.location.search);
                 const referrer = urlParams.get('ref');
